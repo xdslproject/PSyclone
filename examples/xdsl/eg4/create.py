@@ -104,7 +104,7 @@ def create_psyir_tree():
 
     # Assignments
     assign1 = Assignment.create(Reference(scalar_symbol), binaryoperation)
-    assign2 = Assignment.create(Reference(tmp_symbol), onert()))
+    assign2 = Assignment.create(Reference(tmp_symbol), onert())
     assign3 = Assignment.create(Reference(scalar_symbol), two())
 
     # Loop
