@@ -116,7 +116,7 @@ class xDSLWriter(LanguageWriter):
       if isinstance(datatype, ArrayType):
         array_shape = datatype.shape
         if array_shape:
-            dims = self.gen_indices(array_shape)
+          dims = self.gen_indices(array_shape)          
         if isinstance(datatype.intrinsic, DataTypeSymbol):
           base_type=psy_ir.DerivedType.from_str(datatype.name)
         else:          
@@ -335,7 +335,18 @@ class xDSLWriter(LanguageWriter):
           dims.append(expression)
         elif isinstance(index, ArrayType.Extent):
           dims.append(psy_ir.AnonymousAttr())
-        else:
+        elif isinstance(index, ArrayType.ArrayBounds):          
+          expression = self._visit(index.lower)
+          if isinstance(expression, psy_ir.Literal):
+            dims.append(expression.value)
+          else:
+            dims.append(expression)
+          expression = self._visit(index.upper)
+          if isinstance(expression, psy_ir.Literal):
+            dims.append(expression.value)
+          else:
+            dims.append(expression)
+        else:          
           raise NotImplementedError(f"unsupported gen_indices index '{index}'")
       return dims
     
