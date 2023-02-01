@@ -1,0 +1,1 @@
+python3.10 /home/nick/projects/xdsl/PSyclone/bin/psyclone -api nemo -s ./xdsl_backends_transform.py tra_adv.F90
