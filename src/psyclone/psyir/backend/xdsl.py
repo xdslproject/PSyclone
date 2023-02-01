@@ -38,8 +38,8 @@ from __future__ import annotations
 import six
 from psyclone.psyir.backend.language_writer import LanguageWriter
 from psyclone.psyir.backend.visitor import VisitorError
-from psyclone.psyir.nodes import Routine, CodeBlock, BinaryOperation, UnaryOperation, Schedule, DataNode, Range
-from psyclone.psyir.symbols import SymbolTable, ScalarType, RoutineSymbol, DataSymbol, DataTypeSymbol, ArgumentInterface, ArrayType, Symbol, NoType
+from psyclone.psyir.nodes import Routine, CodeBlock, BinaryOperation, UnaryOperation, NaryOperation, Schedule, DataNode, Range, Literal
+from psyclone.psyir.symbols import SymbolTable, ScalarType, RoutineSymbol, DataSymbol, DataTypeSymbol, ArgumentInterface, ArrayType, Symbol, NoType, UnknownFortranType
 from psy.dialects import psy_ir
 from xdsl.dialects.builtin import StringAttr, IntAttr, ArrayAttr
 from xdsl.dialects.builtin import ModuleOp
@@ -47,7 +47,7 @@ from dataclasses import dataclass, field
 from typing import List, Optional, Tuple, Dict
 from xdsl.ir import Operation, Attribute, ParametrizedAttribute, Region, Block, SSAValue, MLContext
 
-INTRINSIC_TYPE_TO_STRING={ScalarType.Intrinsic.INTEGER: "integer", ScalarType.Intrinsic.REAL: "real", 
+INTRINSIC_TYPE_TO_STRING={ScalarType.Intrinsic.INTEGER: "integer", ScalarType.Intrinsic.REAL: "real",
   ScalarType.Intrinsic.BOOLEAN: "logical", ScalarType.Intrinsic.CHARACTER: "character"}
 
 @dataclass
@@ -60,7 +60,7 @@ class SSAValueCtx:
 
     def __getitem__(self, identifier: str) -> Optional[SSAValue]:
         """Check if the given identifier is in the current scope, or a parent scope"""
-        ssa_value = self.dictionary.get(identifier, None)        
+        ssa_value = self.dictionary.get(identifier, None)
         if ssa_value:
             return ssa_value
         elif self.parent_scope:
@@ -74,7 +74,7 @@ class SSAValueCtx:
             raise Exception()
         else:
             self.dictionary[identifier] = ssa_value
-            
+
 class xDSLWriter(LanguageWriter):
     '''Implements a PSyIR-to-xDSL back-end for the PSyIR.
 
@@ -86,84 +86,86 @@ class xDSLWriter(LanguageWriter):
                                       indent_string,
                                       initial_indent_depth,
                                       check_global_constraints)
-                                      
+
         self.global_ctx = SSAValueCtx()
-        self.ctx=self.global_ctx        
-        
-    def apply_precision(self, precision, base_type):      
+        self.ctx=self.global_ctx
+
+    def apply_precision(self, precision, base_type):
       if isinstance(precision, ScalarType.Precision):
-        if base_type.type_name.data == "real" and precision == ScalarType.Precision.DOUBLE: 
+        if base_type.type_name.data == "real" and precision == ScalarType.Precision.DOUBLE:
           base_type.set_precision(IntAttr(8))
-        elif base_type.type_name.data == "real" and precision == ScalarType.Precision.SINGLE: 
+        elif base_type.type_name.data == "real" and precision == ScalarType.Precision.SINGLE:
           base_type.set_precision(IntAttr(4))
-        elif base_type.type_name.data == "real" and precision == ScalarType.Precision.UNDEFINED: 
-          base_type.set_precision(psy_ir.EmptyAttr())          
+        elif base_type.type_name.data == "real" and precision == ScalarType.Precision.UNDEFINED:
+          base_type.set_precision(psy_ir.EmptyAttr())
       elif isinstance(precision, int):
-        if base_type.type_name.data not in ["real", "integer", "logical"]: 
+        if base_type.type_name.data not in ["real", "integer", "logical"]:
           print("Error - type not compatible with precision "+base_type.name)
         if base_type.type_name.data == 'real' and precision not in [4, 8, 16]:
-          print("Error - type 'real' supports precision of 4, 8, 16 only")            
+          print("Error - type 'real' supports precision of 4, 8, 16 only")
         if base_type.type_name.data in ['integer', 'logical'] and precision not in \
            [1, 2, 4, 8, 16]:
-          print("Error - type 'integer' supports precision of 1,2, 4, 8, 16 only")  
+          print("Error - type 'integer' supports precision of 1,2, 4, 8, 16 only")
         base_type.set_precision(IntAttr(precision))
       elif isinstance(precision, DataSymbol):
-        if base_type.type_name.data not in ["real", "integer", "logical"]: 
+        if base_type.type_name.data not in ["real", "integer", "logical"]:
           print("Error - type not compatible with kind "+base_type.type_name.data)
-        base_type.set_kind(StringAttr(precision.name))      
+        base_type.set_kind(StringAttr(precision.name))
 
     def gen_type(self, datatype):
       if isinstance(datatype, ArrayType):
         array_shape = datatype.shape
         if array_shape:
-          dims = self.gen_indices(array_shape)          
+          dims = self.gen_indices(array_shape)
         if isinstance(datatype.intrinsic, DataTypeSymbol):
           base_type=psy_ir.DerivedType.from_str(datatype.name)
-        else:          
+        else:
           base_type=psy_ir.NamedType([StringAttr(INTRINSIC_TYPE_TO_STRING[datatype.intrinsic]), psy_ir.EmptyAttr(), psy_ir.EmptyAttr()])
           self.apply_precision(datatype.precision, base_type)
         return psy_ir.ArrayType.from_type_and_list(base_type, dims)
       elif isinstance(datatype, DataTypeSymbol):
         return psy_ir.DerivedType.from_str(datatype.name)
-      else:        
+      elif isinstance(datatype, UnknownFortranType):
+        print("Error - not sure how to handle unknown fortran type")
+      else:
         base_type=psy_ir.NamedType([StringAttr(INTRINSIC_TYPE_TO_STRING[datatype.intrinsic]), psy_ir.EmptyAttr(), psy_ir.EmptyAttr()])
         self.apply_precision(datatype.precision, base_type)
         return base_type
 
-    def gen_intent(self, symbol):    
+    def gen_intent(self, symbol):
       mapping = {ArgumentInterface.Access.UNKNOWN: "",
                ArgumentInterface.Access.READ: "in",
                ArgumentInterface.Access.WRITE: "out",
                ArgumentInterface.Access.READWRITE: "inout"}
 
-      if symbol.is_argument:        
-        return mapping[symbol.interface.access]        
+      if symbol.is_argument:
+        return mapping[symbol.interface.access]
       else:
         return ""  # non-Arguments do not have intent
-        
-    def gen_declarations(self, symbol_table):   
-      var_defs = []      
+
+    def gen_declarations(self, symbol_table):
+      var_defs = []
 
       for sym in symbol_table.argument_datasymbols:
         intent=self.gen_intent(sym)
         var_type=self.gen_type(sym.datatype)
         tkn=psy_ir.Token([StringAttr(sym.name), var_type])
         var_defs.append(psy_ir.VarDef.get(tkn, True, sym.is_constant, intent))
-        self.ctx[sym.name] = tkn 
+        self.ctx[sym.name] = tkn
 
       for sym in symbol_table.local_datasymbols:
-        try:                    
-          var_type=self.gen_type(sym.datatype)          
+        try:
+          var_type=self.gen_type(sym.datatype)
           tkn=psy_ir.Token([StringAttr(sym.name), var_type])
-          self.ctx[sym.name] = tkn 
-          
-          var_defs.append(psy_ir.VarDef.get(tkn, False, sym.is_constant))    
+          self.ctx[sym.name] = tkn
+
+          var_defs.append(psy_ir.VarDef.get(tkn, False, sym.is_constant))
         except (AttributeError, KeyError) as err:
           raise six.raise_from(NotImplementedError(
             "Could not generate the definition for the variable '{0}', "
             "type '{1}' is currently not supported."
             "".format(sym.name, sym.datatype)), err)
-                  
+
       return var_defs
 
     def gen_use(self, symbol, symbol_table):
@@ -173,7 +175,7 @@ class xDSLWriter(LanguageWriter):
 
       return psy_ir.Import.get(symbol.name, only_list)
 
-    
+
     def filecontainer_node(self, node):
       program_nodes = len([child for child in node.children if
                              isinstance(child, Routine) and child.is_program])
@@ -181,7 +183,7 @@ class xDSLWriter(LanguageWriter):
       for child in node.children:
         containers.append(self._visit(child))
       return ModuleOp.from_region_or_ops([psy_ir.FileContainer.get(node.name, containers)])
-    
+
     def container_node(self, node):
       if not all(isinstance(child, (Routine, CodeBlock)) for
                    child in node.children):
@@ -193,17 +195,19 @@ class xDSLWriter(LanguageWriter):
       visibility=self.gen_access_stmt(node.symbol_table)
       public_routines, private_routines=self.gen_routine_access_stmts(node.symbol_table)
 
+      print(node.coded_kernels())
+
       imports=[]
       for symbol in node.symbol_table.containersymbols:
         imports.append(self.gen_use(symbol, node.symbol_table))
-      
+
       routines = []
       for child in node.children:
           routines.append(self._visit(child))
 
       return psy_ir.Container.get(node.name, visibility, public_routines, private_routines, imports, routines)
 
-    def gen_access_stmt(self, symbol_table):        
+    def gen_access_stmt(self, symbol_table):
         # If no default visibility has been set then we use the Fortran
         # default of public.
         if symbol_table.default_visibility in [None, Symbol.Visibility.PUBLIC]:
@@ -217,7 +221,7 @@ class xDSLWriter(LanguageWriter):
             f"either 'Symbol.Visibility.PUBLIC' or "
             f"'Symbol.Visibility.PRIVATE'\n")
 
-    def gen_routine_access_stmts(self, symbol_table):       
+    def gen_routine_access_stmts(self, symbol_table):
 
         # Find the symbol that represents itself, this one will not need
         # an accessibility statement
@@ -252,15 +256,15 @@ class xDSLWriter(LanguageWriter):
                         f"Unrecognised visibility ('{symbol.visibility}') "
                         f"found for symbol '{symbol.name}'. Should be either "
                         f"'Symbol.Visibility.PUBLIC' or "
-                        f"'Symbol.Visibility.PRIVATE'.")        
+                        f"'Symbol.Visibility.PRIVATE'.")
         return public_routines, private_routines
-    
-    def routine_node(self, node):            
+
+    def routine_node(self, node):
       whole_routine_scope = SymbolTable()
       for schedule in node.walk(Schedule):
-        for symbol in schedule.symbol_table.symbols[:]:          
+        for symbol in schedule.symbol_table.symbols[:]:
           try:
-            whole_routine_scope.add(symbol)            
+            whole_routine_scope.add(symbol)
           except KeyError:
             new_name = whole_routine_scope.next_available_name(symbol.name)
             while True:
@@ -274,47 +278,74 @@ class xDSLWriter(LanguageWriter):
               # table so try again.
               new_name = whole_routine_scope.next_available_name(local_name)
               schedule.symbol_table.rename_symbol(symbol, new_name)
-              whole_routine_scope.add(symbol)                        
+              whole_routine_scope.add(symbol)
 
       imports=[]
       for symbol in whole_routine_scope.containersymbols:
         imports.append(self.gen_use(symbol, whole_routine_scope))
-        
+
       parent_ctx=self.ctx
       routine_scope_ctx = SSAValueCtx(dictionary={}, parent_scope=self.ctx)
       self.ctx=routine_scope_ctx
-            
+
       declarations=self.gen_declarations(whole_routine_scope)
-            
-      args = [self.ctx[symbol.name] for symbol in node.symbol_table.argument_list]      
-      
+
+      args = [self.ctx[symbol.name] for symbol in node.symbol_table.argument_list]
+
       # Get the executable statements.
       exec_statements = []
       for child in node.children:
-        exec_statements.append(self._visit(child))
-            
+        child_visited=self._visit(child)
+        if isinstance(child_visited, list):
+          exec_statements.extend(child_visited)
+        else:
+          exec_statements.append(child_visited)
+
       self.ctx=parent_ctx
       if node.return_symbol:
         # Use routine_scope_ctx as the return variable will be created in the routine so need to reference that
-        return psy_ir.Routine.get(node.name, routine_scope_ctx[node.return_symbol.name], imports, args, declarations, exec_statements, node.is_program)        
+        return psy_ir.Routine.get(node.name, routine_scope_ctx[node.return_symbol.name], imports, args, declarations, exec_statements, node.is_program)
       else:
         return psy_ir.Routine.get(node.name, None, imports, args, declarations, exec_statements, node.is_program)
-    
-    def assignment_node(self, node):              
+
+    def codeblock_node(self, node):
+        exec_statements = []
+        if node.structure == CodeBlock.Structure.STATEMENT:
+            # indent and newlines required
+            for ast_node in node.get_ast_nodes:
+                fortran_code=ast_node.tofortran()
+                if "ALLOCATE" in fortran_code:
+                  exec_statements.append(psy_ir.CallExpr.get("allocate", []))
+        #elif node.structure == CodeBlock.Structure.EXPRESSION:
+        #    for ast_node in node.get_ast_nodes:
+        #        result += str(ast_node)
+        else:
+            raise VisitorError(
+                f"Unsupported CodeBlock Structure '{node.structure}' found.")
+        return exec_statements
+
+    def nemokern_node(self, node):
+        exec_statements = []
+        schedule = node.get_kernel_schedule()
+        for child in schedule.children:
+            exec_statements.append(self._visit(child))
+        return exec_statements
+
+    def assignment_node(self, node):
       return psy_ir.Assign.get(self._visit(node.lhs), self._visit(node.rhs))
-    
-    def reference_node(self, node):      
+
+    def reference_node(self, node):
       return psy_ir.ExprName.get(node.symbol.name, self.ctx[node.symbol.name])
 
-    def structurereference_node(self, node):      
+    def structurereference_node(self, node):
       return psy_ir.StructureReference.get(self.ctx[node.symbol.name], self._visit(node.children[0]))
 
     def member_node(self, node):
       if not node.children:
         return psy_ir.StructureMember([StringAttr(node.name), psy_ir.EmptyAttr()])
-      else:        
+      else:
         return psy_ir.StructureMember([StringAttr(node.name), self._visit(node.children[0])])
-        
+
     def return_node(self, node):
       return psy_ir.Return()
 
@@ -328,14 +359,14 @@ class xDSLWriter(LanguageWriter):
 
     def gen_indices(self, indices, var_name=None):
       dims = []
-      for index in indices:        
+      for index in indices:
         if isinstance(index, (DataNode, Range)):
           # literal constant, symbol reference, or computed dimension
           expression = self._visit(index)
           dims.append(expression)
         elif isinstance(index, ArrayType.Extent):
           dims.append(psy_ir.AnonymousAttr())
-        elif isinstance(index, ArrayType.ArrayBounds):          
+        elif isinstance(index, ArrayType.ArrayBounds):
           expression = self._visit(index.lower)
           if isinstance(expression, psy_ir.Literal):
             dims.append(expression.value)
@@ -346,43 +377,47 @@ class xDSLWriter(LanguageWriter):
             dims.append(expression.value)
           else:
             dims.append(expression)
-        else:          
+        else:
           raise NotImplementedError(f"unsupported gen_indices index '{index}'")
       return dims
-    
-    def loop_node(self, node):        
+
+    def loop_node(self, node):
         start = self._visit(node.start_expr)
         stop = self._visit(node.stop_expr)
-        step = self._visit(node.step_expr)        
+        step = self._visit(node.step_expr)
 
         body = []
         for child in node.loop_body:
-            body.append(self._visit(child))
+            child_contents=self._visit(child)
+            if isinstance(child_contents, list):
+              body.extend(child_contents)
+            else:
+              body.append(child_contents)
 
         return psy_ir.Loop.get(self.ctx[node.variable.name], start, stop, step, body)
-    
+
     def ifblock_node(self, node):
         condition = self._visit(node.children[0])
 
         if_body = []
         for child in node.if_body:
             if_body.append(self._visit(child))
-            
+
         else_body = []
         # node.else_body is None if there is no else clause.
         if node.else_body:
             for child in node.else_body:
-                else_body.append(self._visit(child))        
+                else_body.append(self._visit(child))
 
         return psy_ir.IfBlock.get(condition, if_body, else_body)
-    
-    def binaryoperation_node(self, node):        
+
+    def binaryoperation_node(self, node):
       if len(node.children) != 2:
         raise VisitorError(
           "BinaryOperation malformed or incomplete. It "
           "should have exactly 2 children, but found {0}."
           "".format(len(node.children)))
-       
+
       opmap = {
         BinaryOperation.Operator.ADD: "ADD",
         BinaryOperation.Operator.SUB: "SUB",
@@ -418,16 +453,16 @@ class xDSLWriter(LanguageWriter):
       except KeyError as err:
         raise six.raise_from(VisitorError(
                 "The xDSL backend does not support the '{0}' operator."
-                "".format(node.operator)), err)      
+                "".format(node.operator)), err)
       return psy_ir.BinaryOperation.get(opstring, self._visit(node.children[0]), self._visit(node.children[1]))
-      
-    def unaryoperation_node(self, node):        
+
+    def unaryoperation_node(self, node):
       if len(node.children) != 1:
         raise VisitorError(
           "UnaryOperation malformed or incomplete. It "
           "should have exactly 1 children, but found {0}."
           "".format(len(node.children)))
-       
+
       opmap = {
         UnaryOperation.Operator.MINUS: "MINUS",
         UnaryOperation.Operator.PLUS: "PLUS",
@@ -447,7 +482,7 @@ class xDSLWriter(LanguageWriter):
         UnaryOperation.Operator.CEIL: "CEIL",
         UnaryOperation.Operator.REAL: "REAL",
         UnaryOperation.Operator.INT: "INT",
-        UnaryOperation.Operator.NINT: "NINT",        
+        UnaryOperation.Operator.NINT: "NINT",
         }
 
       # For now ignore this, pow and copysign are functions so need to be call expressio rather than binary expression in dialect
@@ -456,9 +491,26 @@ class xDSLWriter(LanguageWriter):
       except KeyError as err:
         raise six.raise_from(VisitorError(
                 "The xDSL backend does not support the '{0}' operator."
-                "".format(node.operator)), err)      
+                "".format(node.operator)), err)
       return psy_ir.UnaryOperation.get(opstring, self._visit(node.children[0]))
-      
+
+    def naryoperation_node(self, node):
+        opmap = {
+        NaryOperation.Operator.MIN: "MIN",
+        NaryOperation.Operator.MAX: "MAX",
+        NaryOperation.Operator.SUM: "SUM"
+        }
+
+        arg_expr_list = []
+        for child in node.children:
+          arg_expr_list.append(self._visit(child))
+        try:
+            opstring=opmap[node.operator]
+        except KeyError as error:
+            raise VisitorError(
+                f"Unexpected N-ary op '{node.operator}'") from error
+        return psy_ir.NaryOperation.get(opstring, arg_expr_list)
+
     def literal_node(self, node):
       if (node.datatype.precision == ScalarType.Precision.SINGLE):
         width=32
@@ -467,16 +519,44 @@ class xDSLWriter(LanguageWriter):
       elif isinstance(node.datatype.precision, int):
         width=node.datatype.precision * 8
       else:
-        width=32      
-      if isinstance(node.datatype, ScalarType):        
-        if node.datatype.intrinsic == ScalarType.Intrinsic.INTEGER:          
+        width=32
+      if isinstance(node.datatype, ScalarType):
+        if node.datatype.intrinsic == ScalarType.Intrinsic.INTEGER:
           return psy_ir.Literal.get(int(node.value), width)
-        elif node.datatype.intrinsic == ScalarType.Intrinsic.REAL:            
+        elif node.datatype.intrinsic == ScalarType.Intrinsic.REAL:
           return psy_ir.Literal.get(float(node.value), width)
-        
+
       return psy_ir.Literal.get(node.value)
-    
-    def call_node(self, node):    
+
+    def range_node(self, node):
+        if node.parent and node.parent.is_lower_bound(
+                node.parent.indices.index(node)):
+            # The range starts for the first element in this
+            # dimension. This is the default in Fortran so no need to
+            # output anything.
+            start = []
+        else:
+            start = [self._visit(node.start)]
+
+        if node.parent and node.parent.is_upper_bound(
+                node.parent.indices.index(node)):
+            # The range ends with the last element in this
+            # dimension. This is the default in Fortran so no need to
+            # output anything.
+            stop = []
+        else:
+            stop = [self._visit(node.stop)]
+
+        if isinstance(node.step, Literal) and \
+           node.step.datatype.intrinsic == ScalarType.Intrinsic.INTEGER and \
+           node.step.value == "1":
+
+            step=[]
+        else:
+            step = [self._visit(node.step)]
+        return psy_ir.Range.get(start, stop, step)
+
+    def call_node(self, node):
       result_list = []
       for child in node.children:
         result_list.append(self._visit(child))
