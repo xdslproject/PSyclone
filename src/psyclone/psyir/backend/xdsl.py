@@ -195,8 +195,6 @@ class xDSLWriter(LanguageWriter):
       visibility=self.gen_access_stmt(node.symbol_table)
       public_routines, private_routines=self.gen_routine_access_stmts(node.symbol_table)
 
-      print(node.coded_kernels())
-
       imports=[]
       for symbol in node.symbol_table.containersymbols:
         imports.append(self.gen_use(symbol, node.symbol_table))
@@ -382,8 +380,8 @@ class xDSLWriter(LanguageWriter):
           # literal constant, symbol reference, or computed dimension
           expression = self._visit(index)
           dims.append(expression)
-        elif isinstance(index, ArrayType.Extent):
-          dims.append(psy_ir.AnonymousAttr())
+        elif isinstance(index, ArrayType.Extent) and index == ArrayType.Extent.DEFERRED:
+          dims.append(psy_ir.DeferredAttr())
         elif isinstance(index, ArrayType.ArrayBounds):
           expression = self._visit(index.lower)
           if isinstance(expression, psy_ir.Literal):
