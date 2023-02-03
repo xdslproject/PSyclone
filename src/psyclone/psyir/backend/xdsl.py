@@ -326,7 +326,7 @@ class xDSLWriter(LanguageWriter):
 
     def handleDeAllocateCodeBlock(self, fortran_code):
       varname=fortran_code.split("DEALLOCATE(")[1].split(")")[0]
-      return psy_ir.CallExpr.get("deallocate", [psy_ir.ExprName.get(varname, self.ctx[varname])])
+      return psy_ir.CallExpr.get("deallocate", [psy_ir.ExprName.get(varname, self.ctx[varname])], intrinsic=True)
 
     def handleAllocateCodeBlock(self, fortran_code):
       varname=fortran_code.split("ALLOCATE(")[1].split("(")[0]
@@ -338,7 +338,7 @@ class xDSLWriter(LanguageWriter):
           result_list.append(psy_ir.ExprName.get(arg, self.ctx[arg]))
         else:
           raise VisitorError(f"Can not interpret argument `{arg}` in allocation")
-      return psy_ir.CallExpr.get("allocate", result_list)
+      return psy_ir.CallExpr.get("allocate", result_list, intrinsic=True)
 
     def nemokern_node(self, node):
         exec_statements = []
