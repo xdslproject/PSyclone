@@ -314,8 +314,10 @@ class xDSLWriter(LanguageWriter):
             # indent and newlines required
             for ast_node in node.get_ast_nodes:
                 fortran_code=ast_node.tofortran()
-                if "ALLOCATE" in fortran_code:
-                  exec_statements.append(psy_ir.CallExpr.get("allocate", []))
+                if fortran_code.startswith("ALLOCATE"):
+                  exec_statements.append(self.handleAllocateCodeBlock(fortran_code))
+                if fortran_code.startswith("DEALLOCATE"):
+                  exec_statements.append(self.handleDeAllocateCodeBlock(fortran_code))
         #elif node.structure == CodeBlock.Structure.EXPRESSION:
         #    for ast_node in node.get_ast_nodes:
         #        result += str(ast_node)
@@ -323,6 +325,22 @@ class xDSLWriter(LanguageWriter):
             raise VisitorError(
                 f"Unsupported CodeBlock Structure '{node.structure}' found.")
         return exec_statements
+
+    def handleDeAllocateCodeBlock(self, fortran_code):
+      varname=fortran_code.split("DEALLOCATE(")[1].split(")")[0]
+      return psy_ir.CallExpr.get("deallocate", [psy_ir.ExprName.get(varname, self.ctx[varname])])
+
+    def handleAllocateCodeBlock(self, fortran_code):
+      varname=fortran_code.split("ALLOCATE(")[1].split("(")[0]
+      result_list=[psy_ir.ExprName.get(varname, self.ctx[varname])]
+      args=fortran_code.split("ALLOCATE(")[1].split("(")[1].split(")")[0].split(",")
+      for arg in args:
+        arg=arg.strip()
+        if self.ctx[arg] is not None:
+          result_list.append(psy_ir.ExprName.get(arg, self.ctx[arg]))
+        else:
+          raise VisitorError(f"Can not interpret argument `{arg}` in allocation")
+      return psy_ir.CallExpr.get("allocate", result_list)
 
     def nemokern_node(self, node):
         exec_statements = []
