@@ -36,6 +36,7 @@
 '''
 from __future__ import annotations
 import six
+import re
 from psyclone.psyir.backend.language_writer import LanguageWriter
 from psyclone.psyir.backend.visitor import VisitorError
 from psyclone.psyir.nodes import Routine, CodeBlock, BinaryOperation, UnaryOperation, NaryOperation, Schedule, DataNode, Range, Literal
@@ -49,6 +50,8 @@ from xdsl.ir import Operation, Attribute, ParametrizedAttribute, Region, Block, 
 
 INTRINSIC_TYPE_TO_STRING={ScalarType.Intrinsic.INTEGER: "integer", ScalarType.Intrinsic.REAL: "real",
   ScalarType.Intrinsic.BOOLEAN: "logical", ScalarType.Intrinsic.CHARACTER: "character"}
+
+INTRINSIC_FUNCTIONS=["PRINT"]
 
 @dataclass
 class SSAValueCtx:
@@ -312,10 +315,12 @@ class xDSLWriter(LanguageWriter):
             # indent and newlines required
             for ast_node in node.get_ast_nodes:
                 fortran_code=ast_node.tofortran()
-                if fortran_code.startswith("ALLOCATE"):
+                if fortran_code.upper().startswith("ALLOCATE"):
                   exec_statements.append(self.handleAllocateCodeBlock(fortran_code))
-                if fortran_code.startswith("DEALLOCATE"):
+                elif fortran_code.upper().startswith("DEALLOCATE"):
                   exec_statements.append(self.handleDeAllocateCodeBlock(fortran_code))
+                else:
+                  exec_statements.append(self.handleIntrinsic(fortran_code))
         #elif node.structure == CodeBlock.Structure.EXPRESSION:
         #    for ast_node in node.get_ast_nodes:
         #        result += str(ast_node)
@@ -323,6 +328,46 @@ class xDSLWriter(LanguageWriter):
             raise VisitorError(
                 f"Unsupported CodeBlock Structure '{node.structure}' found.")
         return exec_statements
+
+    def handleIntrinsic(self, fortran_code):
+      hasToken=re.search("[a-zA-Z]*\s|\(", fortran_code)
+      if hasToken:
+        tokens=re.findall("[a-zA-Z]*\s|\(", fortran_code.upper())
+        if tokens[0].strip() in INTRINSIC_FUNCTIONS:
+          psy_ir_args=[]
+          arguments=fortran_code.replace(tokens[0], "").replace("(", "").split(",")
+          for argument in arguments:
+            argument=argument.strip()
+            if argument.count("\"")  == 2 or argument == "*":
+              # This is a string
+              psy_ir_args.append(psy_ir.Literal.get(argument))
+            elif argument in self.ctx.dictionary.keys():
+              # This is a variable
+              psy_ir_args.append(psy_ir.ExprName.get(varname, self.ctx[varname]))
+            else:
+              if self.checkIfStringIsType(argument, int):
+                psy_ir_args.append(psy_ir.Literal.get(argument))
+              elif self.checkIfStringIsType(argument, float):
+                psy_ir_args.append(psy_ir.Literal.get(argument))
+              else:
+                raise VisitorError(f"Unknown literal argument type '{argument}'")
+          return psy_ir.CallExpr.get(tokens[0].strip(), psy_ir_args, intrinsic=True)
+        else:
+          raise VisitorError(f"Intrinsic '{tokens[0]}' call not supported")
+      else:
+        raise VisitorError(f"Can not extract intrinsic name from '{fortran_code}'")
+
+    def checkIfStringIsType(self, string, typ):
+      try:
+        if (typ == int):
+          int(string)
+          return True
+        elif (typ == float):
+          float(string)
+          return True
+      except ValueError:
+        return False
+      raise VisitorError(f"Unknown type for string check '{str(type)}'")
 
     def handleDeAllocateCodeBlock(self, fortran_code):
       varname=fortran_code.split("DEALLOCATE(")[1].split(")")[0]
