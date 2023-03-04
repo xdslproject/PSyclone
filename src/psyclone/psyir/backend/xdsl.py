@@ -343,12 +343,12 @@ class xDSLWriter(LanguageWriter):
               psy_ir_args.append(psy_ir.Literal.get(argument))
             elif argument in self.ctx.dictionary.keys():
               # This is a variable
-              psy_ir_args.append(psy_ir.ExprName.get(varname, self.ctx[varname]))
+              psy_ir_args.append(psy_ir.ExprName.get(argument, self.ctx[argument]))
             else:
               if self.checkIfStringIsType(argument, int):
-                psy_ir_args.append(psy_ir.Literal.get(argument))
+                psy_ir_args.append(psy_ir.Literal.get(int(argument), 32))
               elif self.checkIfStringIsType(argument, float):
-                psy_ir_args.append(psy_ir.Literal.get(argument))
+                psy_ir_args.append(psy_ir.Literal.get(float(argument), 32))
               else:
                 raise VisitorError(f"Unknown literal argument type '{argument}'")
           return psy_ir.CallExpr.get(tokens[0].strip(), psy_ir_args, intrinsic=True)
