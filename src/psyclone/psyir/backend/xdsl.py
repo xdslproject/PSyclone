@@ -42,7 +42,7 @@ from psyclone.psyir.backend.visitor import VisitorError
 from psyclone.psyir.nodes import Routine, CodeBlock, BinaryOperation, UnaryOperation, NaryOperation, Schedule, DataNode, Range, Literal
 from psyclone.psyir.symbols import SymbolTable, ScalarType, RoutineSymbol, DataSymbol, DataTypeSymbol, ArgumentInterface, ArrayType, Symbol, NoType, UnknownFortranType
 from psy.dialects import psy_ir
-from xdsl.dialects.builtin import StringAttr, IntAttr, ArrayAttr
+from xdsl.dialects.builtin import StringAttr, IntAttr, ArrayAttr, i32
 from xdsl.dialects.builtin import ModuleOp
 from dataclasses import dataclass, field
 from typing import List, Optional, Tuple, Dict
@@ -51,7 +51,7 @@ from xdsl.ir import Operation, Attribute, ParametrizedAttribute, Region, Block, 
 INTRINSIC_TYPE_TO_STRING={ScalarType.Intrinsic.INTEGER: "integer", ScalarType.Intrinsic.REAL: "real",
   ScalarType.Intrinsic.BOOLEAN: "logical", ScalarType.Intrinsic.CHARACTER: "character"}
 
-INTRINSIC_FUNCTIONS=["PRINT"]
+INTRINSIC_FUNCTIONS=["PRINT", "MPI_COMMRANK"]
 
 @dataclass
 class SSAValueCtx:
@@ -310,34 +310,36 @@ class xDSLWriter(LanguageWriter):
         return psy_ir.Routine.get(node.name, None, imports, args, declarations, exec_statements, node.is_program)
 
     def codeblock_node(self, node):
-        exec_statements = []
         if node.structure == CodeBlock.Structure.STATEMENT:
             # indent and newlines required
             for ast_node in node.get_ast_nodes:
                 fortran_code=ast_node.tofortran()
                 if fortran_code.upper().startswith("ALLOCATE"):
-                  exec_statements.append(self.handleAllocateCodeBlock(fortran_code))
+                  return self.handleAllocateCodeBlock(fortran_code)
                 elif fortran_code.upper().startswith("DEALLOCATE"):
-                  exec_statements.append(self.handleDeAllocateCodeBlock(fortran_code))
+                  return self.handleDeAllocateCodeBlock(fortran_code)
                 else:
-                  exec_statements.append(self.handleIntrinsic(fortran_code))
-        #elif node.structure == CodeBlock.Structure.EXPRESSION:
-        #    for ast_node in node.get_ast_nodes:
-        #        result += str(ast_node)
+                  return self.handleIntrinsic(fortran_code, False)
+        elif node.structure == CodeBlock.Structure.EXPRESSION:
+          for ast_node in node.get_ast_nodes:
+            fortran_code=ast_node.tofortran()
+            return self.handleIntrinsic(fortran_code, True)
         else:
             raise VisitorError(
                 f"Unsupported CodeBlock Structure '{node.structure}' found.")
-        return exec_statements
+        return None
 
-    def handleIntrinsic(self, fortran_code):
-      hasToken=re.search("[a-zA-Z]*\s|\(", fortran_code)
+    def handleIntrinsic(self, fortran_code, isExpression):
+      hasToken=re.search("(^[a-zA-Z_-]*)(\s|\()+", fortran_code)
       if hasToken:
-        tokens=re.findall("[a-zA-Z]*\s|\(", fortran_code.upper())
-        if tokens[0].strip() in INTRINSIC_FUNCTIONS:
+        tokens=re.findall("(^[a-zA-Z_-]*)(\s|\()+", fortran_code)
+        if tokens[0][0].upper().strip() in INTRINSIC_FUNCTIONS:
           psy_ir_args=[]
-          arguments=fortran_code.replace(tokens[0], "").replace("(", "").split(",")
+          arg_only=fortran_code.replace(tokens[0][0], "").replace("(", "").replace(")", "")
+          arguments=arg_only.split(",")
           for argument in arguments:
             argument=argument.strip()
+            if len(argument) == 0: continue
             if argument.count("\"")  == 2 or argument == "*":
               # This is a string
               psy_ir_args.append(psy_ir.Literal.get(argument))
@@ -351,9 +353,14 @@ class xDSLWriter(LanguageWriter):
                 psy_ir_args.append(psy_ir.Literal.get(float(argument), 32))
               else:
                 raise VisitorError(f"Unknown literal argument type '{argument}'")
-          return psy_ir.CallExpr.get(tokens[0].strip(), psy_ir_args, intrinsic=True)
+          if isExpression:
+            return psy_ir.CallExpr.get(tokens[0][0].upper().strip(), psy_ir_args,
+              psy_ir.NamedType([StringAttr("integer"), psy_ir.EmptyAttr(), psy_ir.EmptyAttr()]),
+              intrinsic=True)
+          else:
+            return psy_ir.CallExpr.get(tokens[0][0].upper().strip(), psy_ir_args, intrinsic=True)
         else:
-          raise VisitorError(f"Intrinsic '{tokens[0]}' call not supported")
+          raise VisitorError(f"Intrinsic '{tokens[0][0].upper()}' call not supported")
       else:
         raise VisitorError(f"Can not extract intrinsic name from '{fortran_code}'")
 
