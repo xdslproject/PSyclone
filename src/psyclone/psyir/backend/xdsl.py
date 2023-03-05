@@ -51,7 +51,7 @@ from xdsl.ir import Operation, Attribute, ParametrizedAttribute, Region, Block, 
 INTRINSIC_TYPE_TO_STRING={ScalarType.Intrinsic.INTEGER: "integer", ScalarType.Intrinsic.REAL: "real",
   ScalarType.Intrinsic.BOOLEAN: "logical", ScalarType.Intrinsic.CHARACTER: "character"}
 
-INTRINSIC_FUNCTIONS=["PRINT", "MPI_COMMRANK"]
+INTRINSIC_FUNCTIONS=["PRINT", "MPI_COMMRANK", "MPI_SEND", "MPI_RECV"]
 
 @dataclass
 class SSAValueCtx:
@@ -629,7 +629,9 @@ class xDSLWriter(LanguageWriter):
       for child in node.children:
         result_list.append(self._visit(child))
 
+      intrinsic=node.routine.name.upper() in INTRINSIC_FUNCTIONS
+
       if isinstance(node.routine.datatype, NoType):
-        return psy_ir.CallExpr.get(node.routine.name, result_list)
+        return psy_ir.CallExpr.get(node.routine.name, result_list, intrinsic=intrinsic)
       else:
-        return psy_ir.CallExpr.get(node.routine.name, result_list, self.gen_type(node.routine.datatype))
+        return psy_ir.CallExpr.get(node.routine.name, result_list, self.gen_type(node.routine.datatype), intrinsic=intrinsic)
