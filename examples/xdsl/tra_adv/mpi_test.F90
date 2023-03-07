@@ -1,17 +1,22 @@
 
 
-subroutine test()
-  integer :: a, b, c
+subroutine main()
+  integer :: sv, rv, rank, comm_size, rankp1, rankm1
 
-  a=MPI_CommRank()
-  if (a==0) then
-    b=100
-    call MPI_Send(b, 1, 1, 0)
-  else
-    call MPI_Recv(c, 1, 0, 0)
-    print *, "Received message ", c
+  rank=MPI_CommRank()
+  comm_size=MPI_CommSize()
+  if (rank .lt. comm_size -1) then
+    sv=rank*100
+    rankp1=rank+1
+    call MPI_Send(sv, 1, rankp1, 0)
   end if
-end subroutine test
+
+  if (rank .gt. 0) then
+    rankm1=rank-1
+    call MPI_Recv(rv, 1, rankm1, 0)
+    print *, "Received message at ", rank, " from ", rankm1, " value: ", rv
+  end if
+end subroutine main
 
 
 !program mpi_test
