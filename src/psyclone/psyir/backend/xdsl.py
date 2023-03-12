@@ -385,11 +385,20 @@ class xDSLWriter(LanguageWriter):
       result_list=[psy_ir.ExprName.get(varname, self.ctx[varname])]
       args=fortran_code.split("ALLOCATE(")[1].split("(")[1].split(")")[0].split(",")
       for arg in args:
-        arg=arg.strip()
-        if self.ctx[arg] is not None:
-          result_list.append(psy_ir.ExprName.get(arg, self.ctx[arg]))
+        argument=arg.strip()
+        if argument.count("\"")  == 2 or argument == "*":
+          raise VisitorError(f"Can not provide string as argument to allocation")
+        elif argument in self.ctx.dictionary.keys():
+          # This is a variable
+          result_list.append(psy_ir.ExprName.get(argument, self.ctx[argument]))
         else:
-          raise VisitorError(f"Can not interpret argument `{arg}` in allocation")
+          if self.checkIfStringIsType(argument, int):
+            result_list.append(psy_ir.Literal.get(int(argument), 32))
+          elif self.checkIfStringIsType(argument, float):
+            result_list.append(psy_ir.Literal.get(float(argument), 32))
+          else:
+            raise VisitorError(f"Can not interpret argument `{argument}` in allocation")
+
       return psy_ir.CallExpr.get("allocate", result_list, intrinsic=True)
 
     def nemokern_node(self, node):
@@ -434,6 +443,8 @@ class xDSLWriter(LanguageWriter):
           dims.append(expression)
         elif isinstance(index, ArrayType.Extent) and index == ArrayType.Extent.DEFERRED:
           dims.append(psy_ir.DeferredAttr())
+        elif isinstance(index, ArrayType.Extent) and index == ArrayType.Extent.ATTRIBUTE:
+          dims.append(psy_ir.AssumedSizeAttr())
         elif isinstance(index, ArrayType.ArrayBounds):
           expression = self._visit(index.lower)
           if isinstance(expression, psy_ir.Literal):
