@@ -40,27 +40,32 @@ from xdsl.printer import Printer
 from xdsl.dialects.builtin import ModuleOp
 
 def trans(psy):
-    fvisitor = FortranWriter()
+    #fvisitor = FortranWriter()
     writer = xDSLWriter()
     printer = Printer(stream=sys.stdout)
 
+    routine_list=[]
     for invoke in psy.invokes.invoke_list:
         sched = invoke.schedule
-            
-        tranformed=writer(sched)
-    
-        top_level=ModuleOp.from_region_or_ops([tranformed])
-        printer.print_op(top_level)
+
+        routine_list.append(writer(sched))
+
+    top_level=ModuleOp.from_region_or_ops(routine_list)
+    printer.print_op(top_level)
+    print("")
+    print("")
+    print("")
+
     '''
     print(dir(psy.container))
     print((psy.container.root))
-    
+
     tranformed=writer(psy.container)
-    
+
     top_level=ModuleOp.from_region_or_ops([tranformed])
     printer.print_op(top_level)
-    
-    
+
+
     schedule = psy.invokes.get('tra_adv').schedule
     # This seems strange, but need to do this as each kernel is separate and we want in the same module
     container_to_AST_mappings={}
@@ -73,7 +78,7 @@ def trans(psy):
         container_to_AST_mappings[module_name]=writer(kern.get_kernel_schedule().parent)
 
     containers = []
-     
+
     for entry in container_to_AST_mappings.values():
       containers.append(entry)
     containers.append(psy_layer)
