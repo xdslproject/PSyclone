@@ -1,22 +1,61 @@
 
+module my_module
+contains
 
-subroutine main()
-  integer :: sv, rv, rank, comm_size, rankp1, rankm1
+  subroutine init_data(d)
+    real, intent(inout) :: d(64,64)
 
-  rank=MPI_CommRank()
-  comm_size=MPI_CommSize()
-  if (rank .lt. comm_size -1) then
-    sv=rank*100
-    rankp1=rank+1
-    call MPI_Send(sv, 1, rankp1, 0)
-  end if
+    integer :: i, j
 
-  if (rank .gt. 0) then
-    rankm1=rank-1
-    call MPI_Recv(rv, 1, rankm1, 0)
-    print *, "Received message at ", rank, " from ", rankm1, " value: ", rv
-  end if
-end subroutine main
+    do i=2, 63
+      do j=1, 64
+        d(j, i)=0.0
+      end do
+    end do
+    do j=1, 64
+      d(j, 1)=1.0
+      d(j, 64)=10.0
+    end do
+  end subroutine init_data
+
+
+  subroutine main()
+    integer :: rank, i,j, it
+
+    real :: dd(64,64), v, bnorm, rnorm, norm
+
+    call init_data(dd)
+
+    bnorm=0.0
+
+    do i=2, 63
+      do j=2, 63
+        bnorm=bnorm+((dd(j,i)*4-dd(j-1,i)-dd(j+1,i)-dd(j,i-1)-dd(j,i+1)) ** 2)
+      end do
+    end do
+
+    bnorm=sqrt(bnorm)
+
+    do it=1, 1000
+      rnorm=0.0
+      do i=2, 63
+        do j=2, 63
+          rnorm=rnorm+((dd(j,i)*4-dd(j-1,i)-dd(j+1,i)-dd(j,i-1)-dd(j,i+1)) ** 2)
+        end do
+      end do
+      norm=sqrt(rnorm)/bnorm
+      print *, "Iteration: ", it, " norm of ", norm
+
+      do i=2, 63
+        do j=2, 63
+          dd(j,i)=0.25*(dd(j-1,i) + dd(j+1,i) + dd(j,i-1) + dd(j,i+1))
+        end do
+      end do
+    end do     
+  end subroutine main
+
+end module my_module
+
 
 
 !program mpi_test
