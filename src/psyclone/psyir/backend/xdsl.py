@@ -51,7 +51,7 @@ from xdsl.ir import Operation, Attribute, ParametrizedAttribute, Region, Block, 
 INTRINSIC_TYPE_TO_STRING={ScalarType.Intrinsic.INTEGER: "integer", ScalarType.Intrinsic.REAL: "real",
   ScalarType.Intrinsic.BOOLEAN: "logical", ScalarType.Intrinsic.CHARACTER: "character"}
 
-INTRINSIC_FUNCTIONS=["PRINT", "MPI_COMMRANK", "MPI_COMMSIZE", "MPI_SEND", "MPI_RECV"]
+INTRINSIC_FUNCTIONS=["PRINT", "MPI_COMMRANK", "MPI_COMMSIZE", "MPI_SEND", "MPI_RECV", "MPI_ISEND", "MPI_IRECV", "MPI_WAIT", "MPI_WAITALL"]
 
 @dataclass
 class SSAValueCtx:
@@ -121,7 +121,7 @@ class xDSLWriter(LanguageWriter):
         if array_shape:
           dims = self.gen_indices(array_shape)
         if isinstance(datatype.intrinsic, DataTypeSymbol):
-          base_type=psy_ir.DerivedType.from_str(datatype.name)
+          base_type=psy_ir.DerivedType.from_str(datatype.intrinsic.name)
         else:
           base_type=psy_ir.NamedType([StringAttr(INTRINSIC_TYPE_TO_STRING[datatype.intrinsic]), psy_ir.EmptyAttr(), psy_ir.EmptyAttr()])
           self.apply_precision(datatype.precision, base_type)
