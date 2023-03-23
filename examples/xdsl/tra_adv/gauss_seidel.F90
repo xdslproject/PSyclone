@@ -1,8 +1,6 @@
-subroutine gauss_seidel(data)
-    real*8, dimension(256,256), intent(inout) :: data
-    integer*4 :: i
-    integer*4 :: j
-    integer*4 :: k
+subroutine main()
+    real :: data(256, 256)
+    integer :: i, j, k
 
     do k = 1, 1000, 1
       do i = 2, 255, 1
@@ -12,4 +10,4 @@ subroutine gauss_seidel(data)
       enddo
     enddo
 
-end subroutine gauss_seidel
+end subroutine main
