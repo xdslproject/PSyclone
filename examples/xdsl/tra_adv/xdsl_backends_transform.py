@@ -52,6 +52,12 @@ def trans(psy):
 
     top_level=ModuleOp.from_region_or_ops(routine_list)
     printer.print_op(top_level)
+
+    f = open("psy_output.xdsl", "w")
+    p2=Printer(stream=f)
+    p2.print_op(top_level)
+    f.close()
+
     print("")
     print("")
     print("")
