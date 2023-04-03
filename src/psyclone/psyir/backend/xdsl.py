@@ -310,24 +310,27 @@ class xDSLWriter(LanguageWriter):
         return psy_ir.Routine.get(node.name, None, imports, args, declarations, exec_statements, node.is_program)
 
     def codeblock_node(self, node):
+        # A code block can have multiple AST nodes which have not been parsed, therefore
+        # process each of these and store in a list that is returned at the end
+        ops_to_return=[]
         if node.structure == CodeBlock.Structure.STATEMENT:
             # indent and newlines required
             for ast_node in node.get_ast_nodes:
                 fortran_code=ast_node.tofortran()
                 if fortran_code.upper().startswith("ALLOCATE"):
-                  return self.handleAllocateCodeBlock(fortran_code)
+                  ops_to_return.append(self.handleAllocateCodeBlock(fortran_code))
                 elif fortran_code.upper().startswith("DEALLOCATE"):
-                  return self.handleDeAllocateCodeBlock(fortran_code)
+                  ops_to_return.append(self.handleDeAllocateCodeBlock(fortran_code))
                 else:
-                  return self.handleIntrinsic(fortran_code, False)
+                  ops_to_return.append(self.handleIntrinsic(fortran_code, False))
         elif node.structure == CodeBlock.Structure.EXPRESSION:
           for ast_node in node.get_ast_nodes:
             fortran_code=ast_node.tofortran()
-            return self.handleIntrinsic(fortran_code, True)
+            ops_to_return.append(self.handleIntrinsic(fortran_code, True))
         else:
             raise VisitorError(
                 f"Unsupported CodeBlock Structure '{node.structure}' found.")
-        return None
+        return ops_to_return
 
     def handleIntrinsic(self, fortran_code, isExpression):
       hasToken=re.search("(^[a-zA-Z_-]*)(\s|\()+", fortran_code)
