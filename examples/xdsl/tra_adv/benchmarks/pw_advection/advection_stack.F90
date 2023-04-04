@@ -1,11 +1,15 @@
 subroutine main()
-    real*8, dimension(64,64,64) :: su, sv, sw, u, v, w
-    real*8, dimension(64) :: tzc1, tzc2, tzd1, tzd2
+    real*8, dimension(1024,1024,1024) :: su, sv, sw, u, v, w
+    real*8, dimension(1024) :: tzc1, tzc2, tzd1, tzd2
     integer :: k, j, i, nx, ny, nz
+    integer :: itimer0, itimer1
     
-    nx=64
-    ny=64
-    nz=64
+    nx=1024
+    ny=1024
+    nz=1024
+
+    call timer_init()
+    call timer_start(itimer0, label='Initialise')
     
     do i=1, nx
       do j=1, ny
@@ -23,6 +27,9 @@ subroutine main()
       tzd1(k)=100.0
       tzd2(k)=5.0
     end do
+
+    call timer_stop(itimer0)
+    call timer_start(itimer1, label='Compute')
     
 
     do i=2,nx-1
@@ -45,4 +52,8 @@ subroutine main()
         end do
       end do
     end do
+
+    call timer_stop(itimer1)
+
+    call timer_report()
 end subroutine main

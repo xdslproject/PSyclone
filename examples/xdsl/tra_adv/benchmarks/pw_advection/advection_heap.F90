@@ -2,10 +2,11 @@ subroutine main()
     real*8, dimension(:,:,:), allocatable :: su, sv, sw, u, v, w
     real*8, dimension(:), allocatable :: tzc1, tzc2, tzd1, tzd2
     integer :: k, j, i, nx, ny, nz
+    integer :: itimer0, itimer1
     
-    nx=128
-    ny=128
-    nz=128
+    nx=512
+    ny=512
+    nz=512
 
     allocate(su(nz, ny, nx))
     allocate(sv(nz, ny, nx))
@@ -17,6 +18,9 @@ subroutine main()
     allocate(tzc2(nz))
     allocate(tzd1(nz))
     allocate(tzd2(nz))
+
+    call timer_init()
+    call timer_start(itimer0, label='Initialise')
 
     do i=1, nx
       do j=1, ny
@@ -34,6 +38,9 @@ subroutine main()
       tzd1(k)=100.0
       tzd2(k)=5.0
     end do
+
+    call timer_stop(itimer0)
+    call timer_start(itimer1, label='Compute')
 
     do i=2,nx-1
       do j=2,ny-1
@@ -55,6 +62,10 @@ subroutine main()
         end do
       end do
     end do
+
+    call timer_stop(itimer1)
+
+    call timer_report()
 
     deallocate(su)
     deallocate(sv)
