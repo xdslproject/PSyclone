@@ -6,11 +6,11 @@
    !!=====================================================================================
 PROGRAM tra_adv
 
-   REAL*8, ALLOCATABLE, SAVE, DIMENSION(:,:,:)   :: tsn
-   REAL*8, ALLOCATABLE, SAVE, DIMENSION(:,:,:)   :: pun, pvn, pwn
-   REAL*8, ALLOCATABLE, SAVE, DIMENSION(:,:,:)   :: mydomain, zslpx, zslpy, zwx, zwy, umask, vmask, tmask, zind
-   REAL*8, ALLOCATABLE, SAVE, DIMENSION(:,:)     :: ztfreez, rnfmsk, upsmsk
-   REAL*8, ALLOCATABLE, SAVE, DIMENSION(:)       :: rnfmsk_z
+   REAL*8,  DIMENSION(:,:,:), ALLOCATABLE   :: tsn
+   REAL*8,  DIMENSION(:,:,:), ALLOCATABLE   :: pun, pvn, pwn
+   REAL*8,  DIMENSION(:,:,:), ALLOCATABLE   :: mydomain, zslpx, zslpy, zwx, zwy, umask, vmask, tmask, zind
+   REAL*8,  DIMENSION(:,:), ALLOCATABLE     :: ztfreez, rnfmsk, upsmsk
+   REAL*8,  DIMENSION(:), ALLOCATABLE       :: rnfmsk_z
    REAL*8                                        :: zice, zu, z0u, zzwx, zv, z0v, zzwy, ztra, zbtr, zdt, zalpha
    REAL*8                                        :: r, checksum
    REAL*8                                        :: zw, z0w
@@ -21,26 +21,27 @@ PROGRAM tra_adv
    jpi=64
    jpj=64
    jpk=64
-   itn_count=1000
-
-   ALLOCATE( mydomain (jpi,jpj,jpk))
-   ALLOCATE( zwx (jpi,jpj,jpk))
-   ALLOCATE( zwy (jpi,jpj,jpk))
-   ALLOCATE( zslpx (jpi,jpj,jpk))
-   ALLOCATE( zslpy (jpi,jpj,jpk))
-   ALLOCATE( pun (jpi,jpj,jpk))
-   ALLOCATE( pvn (jpi,jpj,jpk))
-   ALLOCATE( pwn (jpi,jpj,jpk))
-   ALLOCATE( umask (jpi,jpj,jpk))
-   ALLOCATE( vmask (jpi,jpj,jpk))
-   ALLOCATE( tmask (jpi,jpj,jpk))
-   ALLOCATE( zind (jpi,jpj,jpk))
-   ALLOCATE( ztfreez (jpi,jpj))
-   ALLOCATE( rnfmsk (jpi,jpj))
-   ALLOCATE( upsmsk (jpi,jpj))
-   ALLOCATE( rnfmsk_z (jpk))
-   ALLOCATE( tsn(jpi,jpj,jpk))
-
+   itn_count=10
+   
+   allocate(tsn(jpi, jpj, jpk))
+   allocate(pun(jpi, jpj, jpk))
+   allocate(pvn(jpi, jpj, jpk))
+   allocate(pwn(jpi, jpj, jpk))
+   
+   allocate(mydomain(jpi, jpj, jpk))
+   allocate(zslpx(jpi, jpj, jpk))
+   allocate(zslpy(jpi, jpj, jpk))
+   allocate(zwx(jpi, jpj, jpk))
+   allocate(zwy(jpi, jpj, jpk))
+   allocate(umask(jpi, jpj, jpk))
+   allocate(vmask(jpi, jpj, jpk))
+   allocate(tmask(jpi, jpj, jpk))
+   allocate(zind(jpi, jpj, jpk))
+   
+   allocate(ztfreez(jpi, jpj))
+   allocate(rnfmsk(jpi, jpj))
+   allocate(upsmsk(jpi, jpj))
+   allocate(rnfmsk_z(jpk))
 
 ! arrays initialization
 
@@ -84,22 +85,18 @@ PROGRAM tra_adv
 !***********************
 
    DO jt = 1, itn_count
-       DO jk = 1, jpk
+
+      DO jk = 1, jpk
           DO jj = 1, jpj
              DO ji = 1, jpi
-                IF( tsn(ji,jj,jk) <= ztfreez(ji,jj) + 0.1d0 ) THEN   ;   zice = 1.d0
-                ELSE                                                 ;   zice = 0.d0
-                ENDIF
                 zind(ji,jj,jk) = MAX (   &
                    rnfmsk(ji,jj) * rnfmsk_z(jk),      &
-                   upsmsk(ji,jj)               ,      &
-                   zice                               &
+                   upsmsk(ji,jj)                      &
                    &                  ) * tmask(ji,jj,jk)
-                   zind(ji,jj,jk) = 1 - zind(ji,jj,jk)
+                zind(ji,jj,jk) = 1.0 - zind(ji,jj,jk)
              END DO
           END DO
        END DO
-
 
       DO jj = 1, jpj
          DO ji = 1, jpi
@@ -124,7 +121,7 @@ PROGRAM tra_adv
          END DO
       END DO
 
-       DO jk = 1, jpk-1
+      DO jk = 1, jpk-1
          DO jj = 2, jpj
             DO ji = 2, jpi
                zslpx(ji,jj,jk) =                    ( zwx(ji,jj,jk) + zwx(ji-1,jj  ,jk) )   &
@@ -152,23 +149,10 @@ PROGRAM tra_adv
          zdt  = 1
          DO jj = 2, jpj-1
             DO ji = 2, jpi-1
-                z0u = SIGN( 0.5d0, pun(ji,jj,jk) )
-                zalpha = 0.5d0 - z0u
-                zu  = z0u - 0.5d0 * pun(ji,jj,jk) * zdt
+                zwx(ji,jj,jk) = pun(ji,jj,jk) * ( (0.5d0 - SIGN( 0.5d0, pun(ji,jj,jk) )) * mydomain(ji+1,jj,jk) + zind(ji,jj,jk) * ((SIGN( 0.5d0, pun(ji,jj,jk) ) - 0.5d0 * pun(ji,jj,jk) * 1.) * zslpx(ji+1,jj,jk)) + (1.-(0.5d0 - SIGN( 0.5d0, pun(ji,jj,jk) ))) * mydomain(ji  ,jj,jk) + zind(ji,jj,jk) * ((SIGN( 0.5d0, pun(ji,jj,jk) ) - 0.5d0 * pun(ji,jj,jk) * 1.) * zslpx(ji  ,jj,jk)) )
 
-                zzwx = mydomain(ji+1,jj,jk) + zind(ji,jj,jk) * (zu * zslpx(ji+1,jj,jk))
-                zzwy = mydomain(ji  ,jj,jk) + zind(ji,jj,jk) * (zu * zslpx(ji  ,jj,jk))
 
-                zwx(ji,jj,jk) = pun(ji,jj,jk) * ( zalpha * zzwx + (1.-zalpha) * zzwy )
-
-                z0v = SIGN( 0.5d0, pvn(ji,jj,jk) )
-                zalpha = 0.5d0 - z0v
-                zv  = z0v - 0.5d0 * pvn(ji,jj,jk) * zdt
-
-                zzwx = mydomain(ji,jj+1,jk) + zind(ji,jj,jk) * (zv * zslpy(ji,jj+1,jk))
-                zzwy = mydomain(ji,jj  ,jk) + zind(ji,jj,jk) * (zv * zslpy(ji,jj  ,jk))
-
-                zwy(ji,jj,jk) = pvn(ji,jj,jk) * ( zalpha * zzwx + (1.d0-zalpha) * zzwy )
+                zwy(ji,jj,jk) = pvn(ji,jj,jk) * ( (0.5d0 - SIGN( 0.5d0, pvn(ji,jj,jk) )) * mydomain(ji,jj+1,jk) + zind(ji,jj,jk) * ((SIGN( 0.5d0, pvn(ji,jj,jk) ) - 0.5d0 * pvn(ji,jj,jk) * 1.) * zslpy(ji,jj+1,jk)) + (1.d0-(0.5d0 - SIGN( 0.5d0, pvn(ji,jj,jk) ))) * mydomain(ji,jj  ,jk) + zind(ji,jj,jk) * ((SIGN( 0.5d0, pvn(ji,jj,jk) ) - 0.5d0 * pvn(ji,jj,jk) * 1.) * zslpy(ji,jj  ,jk)) )
              END DO
           END DO
       END DO
@@ -176,10 +160,8 @@ PROGRAM tra_adv
       DO jk = 1, jpk-1
          DO jj = 2, jpj-1
             DO ji = 2, jpi-1
-               zbtr = 1.
-               ztra = - zbtr * ( zwx(ji,jj,jk) - zwx(ji-1,jj  ,jk  )   &
-               &               + zwy(ji,jj,jk) - zwy(ji  ,jj-1,jk  ) )
-               mydomain(ji,jj,jk) = mydomain(ji,jj,jk) + ztra
+               mydomain(ji,jj,jk) = mydomain(ji,jj,jk) + (- 1. * ( zwx(ji,jj,jk) - zwx(ji-1,jj  ,jk  )   &
+               &               + zwy(ji,jj,jk) - zwy(ji  ,jj-1,jk  ) ))
             END DO
          END DO
       END DO
@@ -224,56 +206,48 @@ PROGRAM tra_adv
          END DO
       END DO
 
-      DO jj = 1, jpj
-         DO ji = 1, jpi
-            zwx(ji,jj, 1 ) = pwn(ji,jj,1) * mydomain(ji,jj,1)
-         END DO
+      DO jk = 1, 1
+        DO jj = 1, jpj
+           DO ji = 1, jpi
+              zwx(ji,jj, jk) = pwn(ji,jj,jk) * mydomain(ji,jj,jk)
+           END DO
+        END DO
       END DO
 
-      zdt  = 1
-      zbtr = 1.
       DO jk = 1, jpk-1
          DO jj = 2, jpj-1
             DO ji = 2, jpi-1
-               z0w = SIGN( 0.5d0, pwn(ji,jj,jk+1) )
-               zalpha = 0.5d0 + z0w
-               zw  = z0w - 0.5d0 * pwn(ji,jj,jk+1) * zdt * zbtr
-
-               zzwx = mydomain(ji,jj,jk+1) + zind(ji,jj,jk) * (zw * zslpx(ji,jj,jk+1))
-               zzwy = mydomain(ji,jj,jk  ) + zind(ji,jj,jk) * (zw * zslpx(ji,jj,jk  ))
-
-               zwx(ji,jj,jk+1) = pwn(ji,jj,jk+1) * ( zalpha * zzwx + (1.-zalpha) * zzwy )
+               zwx(ji,jj,jk+1) = pwn(ji,jj,jk+1) * ( 0.5d0 + SIGN( 0.5d0, pwn(ji,jj,jk+1) ) * (mydomain(ji,jj,jk+1) + zind(ji,jj,jk) * (SIGN( 0.5d0, pwn(ji,jj,jk+1) ) - 0.5d0 * pwn(ji,jj,jk+1) * 1.0 * 1.0 * zslpx(ji,jj,jk+1))) + (1.-0.5d0 + SIGN( 0.5d0, pwn(ji,jj,jk+1) )) * (mydomain(ji,jj,jk  ) + zind(ji,jj,jk) * (SIGN( 0.5d0, pwn(ji,jj,jk+1) ) - 0.5d0 * pwn(ji,jj,jk+1) * 1.0 * 1.0 * zslpx(ji,jj,jk  ))) )
             END DO
          END DO
       END DO
 
-      zbtr = 1.
       DO jk = 1, jpk-1
          DO jj = 2, jpj-1
             DO ji = 2, jpi-1
-               ztra = - zbtr * ( zwx(ji,jj,jk) - zwx(ji,jj,jk+1) )
-               mydomain(ji,jj,jk) = ztra
+               mydomain(ji,jj,jk) = - 1.0 * ( zwx(ji,jj,jk) - zwx(ji,jj,jk+1) )
             END DO
          END DO
       END DO
   END DO
-
-  deallocate( mydomain )
-  deallocate( zwx )
-  deallocate( zwy )
-  deallocate( zslpx )
-  deallocate( zslpy )
-  deallocate( pun )
-  deallocate( pvn )
-  deallocate( pwn )
-  deallocate( umask)
-  deallocate( vmask)
-  deallocate( tmask)
-  deallocate( zind )
-  deallocate( ztfreez )
-  deallocate( rnfmsk)
-  deallocate( upsmsk)
-  deallocate( rnfmsk_z)
-  deallocate( tsn)
-
+  
+  deallocate(tsn)
+  deallocate(pun)
+  deallocate(pvn)
+  deallocate(pwn)
+   
+  deallocate(mydomain)
+  deallocate(zslpx)
+  deallocate(zslpy)
+  deallocate(zwx)
+  deallocate(zwy)
+  deallocate(umask)
+  deallocate(vmask)
+  deallocate(tmask)
+  deallocate(zind)
+   
+  deallocate(ztfreez)
+  deallocate(rnfmsk)
+  deallocate(upsmsk)
+  deallocate(rnfmsk_z)
 end program tra_adv

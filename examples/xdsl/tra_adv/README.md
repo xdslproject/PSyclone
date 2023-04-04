@@ -1,1 +1,61 @@
 python3.10 /home/nick/projects/xdsl/PSyclone/bin/psyclone -api nemo -s ./xdsl_backends_transform.py tra_adv.F90
+
+To compile, for non-MPI:
+
+./psy-opt -p apply-stencil-analysis,psy-ir-to-fir,extract-stencil,rewrite-fir-to-standard psy_output.xdsl -t both
+
+Then copy the module 0 file out to the xdsl tools directory, and run
+
+./xdsl-opt -p stencil-shape-inference,convert-stencil-to-ll-mlir module_0.xdsl -t mlir -o stencil.mlir
+
+Then copy stencil.mlir and module_1.mlir (in generated directory) to your compile directory.
+
+Issue:
+
+mlir-opt --pass-pipeline="builtin.module(canonicalize, loop-invariant-code-motion, convert-scf-to-openmp, convert-scf-to-cf, convert-cf-to-llvm{index-bitwidth=64}, convert-math-to-llvm, convert-arith-to-llvm{index-bitwidth=64}, convert-memref-to-llvm{index-bitwidth=64}, convert-openmp-to-llvm, convert-func-to-llvm, reconcile-unrealized-casts, canonicalize)" stencil.mlir | mlir-translate --mlir-to-llvmir -o stencil.bc
+
+clang -g -c stencil.bc
+flang-new -fc1 -emit-obj module_1.mlir
+flang-new -fopenmp -o stencil stencil.o module_1.o
+
+And run the executable :)
+
+To compile, for MPI:
+
+./psy-opt -p apply-stencil-analysis,psy-ir-to-fir,lower-mpi,extract-stencil,rewrite-fir-to-standard psy_output.xdsl -t both
+
+Then copy the module 0 file out to the xdsl tools directory, and run
+
+./xdsl-opt -p apply-mpi,stencil-shape-inference,convert-stencil-to-ll-mlir,lower-mpi module_0.xdsl -t mlir -o stencil.mlir
+
+Then copy stencil.mlir and module_1.mlir (in generated directory) to your compile directory.
+
+Issue:
+
+mlir-opt --pass-pipeline="builtin.module(canonicalize, loop-invariant-code-motion, convert-scf-to-cf, convert-cf-to-llvm{index-bitwidth=64}, convert-math-to-llvm, convert-arith-to-llvm{index-bitwidth=64}, convert-memref-to-llvm{index-bitwidth=64}, convert-openmp-to-llvm, convert-func-to-llvm, reconcile-unrealized-casts, canonicalize)" stencil.mlir | mlir-translate --mlir-to-llvmir -o stencil.bc
+
+clang -g -c stencil.bc
+flang-new -fc1 -emit-obj module_1.mlir
+flang-new -o stencil stencil.o module_1.o -lmpi
+
+And run the executable using mpiexec :)
+
+To compile, for GPU:
+
+./psy-opt -p apply-stencil-analysis,psy-ir-to-fir,extract-stencil,rewrite-fir-to-standard psy_output.xdsl -t both
+
+Then copy the module 0 file out to the xdsl tools directory, and run
+
+./xdsl-opt -p stencil-shape-inference,convert-stencil-to-gpu module_0.xdsl -t mlir -o stencil-gpu.mlir
+
+Then copy stencil.mlir and module_1.mlir (in generated directory) to your compile directory.
+
+Issue (the mlir-opt needs to be on GPU node of Cirrus):
+
+bin/mlir-opt --pass-pipeline="builtin.module(test-math-algebraic-simplification,scf-parallel-loop-tiling{parallel-loop-tile-sizes=1024,1,1}, canonicalize, func.func(gpu-map-parallel-loops), convert-parallel-loops-to-gpu, lower-affine, gpu-kernel-outlining,func.func(gpu-async-region),canonicalize,convert-arith-to-llvm{index-bitwidth=64},convert-memref-to-llvm{index-bitwidth=64},convert-scf-to-cf,convert-cf-to-llvm{index-bitwidth=64},gpu.module(convert-gpu-to-nvvm,reconcile-unrealized-casts,canonicalize,gpu-to-cubin),gpu-to-llvm,canonicalize)" stencil-gpu.mlir | bin/mlir-translate --mlir-to-llvmir -o stencil.bc
+
+clang -g -c stencil.bc
+flang-new -fc1 -emit-obj module_1.mlir
+flang-new -o stencil stencil.o module_1.o -lmpi
+
+And run the executable :)

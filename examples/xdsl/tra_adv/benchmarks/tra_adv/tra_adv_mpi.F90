@@ -16,12 +16,14 @@ PROGRAM tra_adv
    REAL*8                                        :: zw, z0w
    INTEGER                                       :: jpi, jpj, jpk, ji, jj, jk, jt
    INTEGER*8                                     :: itn_count
+   
+   call MPI_Init()
 
 
    jpi=64
    jpj=64
    jpk=64
-   itn_count=1000
+   itn_count=10
    
    allocate(tsn(jpi, jpj, jpk))
    allocate(pun(jpi, jpj, jpk))
@@ -250,4 +252,6 @@ PROGRAM tra_adv
   deallocate(rnfmsk)
   deallocate(upsmsk)
   deallocate(rnfmsk_z)
+  
+  call MPI_Finalize()
 end program tra_adv
