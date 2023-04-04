@@ -51,7 +51,8 @@ from xdsl.ir import Operation, Attribute, ParametrizedAttribute, Region, Block, 
 INTRINSIC_TYPE_TO_STRING={ScalarType.Intrinsic.INTEGER: "integer", ScalarType.Intrinsic.REAL: "real",
   ScalarType.Intrinsic.BOOLEAN: "logical", ScalarType.Intrinsic.CHARACTER: "character"}
 
-INTRINSIC_FUNCTIONS=["PRINT", "MPI_COMMRANK", "MPI_COMMSIZE", "MPI_SEND", "MPI_RECV", "MPI_ISEND", "MPI_IRECV", "MPI_WAIT", "MPI_WAITALL", "MPI_REDUCE", "MPI_ALLREDUCE", "MPI_BCAST"]
+INTRINSIC_FUNCTIONS=["PRINT", "MPI_COMMRANK", "MPI_COMMSIZE", "MPI_SEND", "MPI_RECV", "MPI_ISEND", "MPI_IRECV", "MPI_WAIT", "MPI_WAITALL",
+  "MPI_REDUCE", "MPI_ALLREDUCE", "MPI_BCAST", "MPI_INIT", "MPI_FINALIZE", "TIMER_INIT", "TIMER_START", "TIMER_STOP", "TIMER_REPORT"]
 
 @dataclass
 class SSAValueCtx:
