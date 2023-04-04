@@ -23,7 +23,7 @@ PROGRAM tra_adv
    jpk=64
    itn_count=1000
 
-   
+
 
 ! arrays initialization
 
@@ -74,11 +74,18 @@ PROGRAM tra_adv
                 zind(ji,jj,jk) = MAX (   &
                    rnfmsk(ji,jj) * rnfmsk_z(jk),      &
                    upsmsk(ji,jj)                      &
-                   &                  ) * tmask(ji,jj,jk)     
-                zind(ji,jj,jk) = 1 - zind(ji,jj,jk)              
+                   &                  ) * tmask(ji,jj,jk)
+                zind(ji,jj,jk) = 1.0 - zind(ji,jj,jk)
              END DO
           END DO
        END DO
+
+      DO jj = 1, jpj
+         DO ji = 1, jpi
+            zwx(ji,jj,jpk) = 0.e0
+            zwy(ji,jj,jpk) = 0.e0
+         END DO
+      END DO
 
        DO jk = 1, jpk-1
           DO jj = 1, jpj-1
@@ -88,6 +95,122 @@ PROGRAM tra_adv
              END DO
           END DO
        END DO
+
+      DO jj = 1, jpj
+         DO ji = 1, jpi
+            zslpx(ji,jj,jpk) = 0.e0
+            zslpy(ji,jj,jpk) = 0.e0
+         END DO
+      END DO
+
+      DO jk = 1, jpk-1
+         DO jj = 2, jpj
+            DO ji = 2, jpi
+               zslpx(ji,jj,jk) =                    ( zwx(ji,jj,jk) + zwx(ji-1,jj  ,jk) )   &
+               &            * ( 0.25d0 + SIGN( 0.25d0, zwx(ji,jj,jk) * zwx(ji-1,jj  ,jk) ) )
+               zslpy(ji,jj,jk) =                    ( zwy(ji,jj,jk) + zwy(ji  ,jj-1,jk) )   &
+               &            * ( 0.25d0 + SIGN( 0.25d0, zwy(ji,jj,jk) * zwy(ji  ,jj-1,jk) ) )
+            END DO
+         END DO
+      END DO
+
+      DO jk = 1, jpk-1
+         DO jj = 2, jpj
+            DO ji = 2, jpi
+               zslpx(ji,jj,jk) = SIGN( 1.d0, zslpx(ji,jj,jk) ) * MIN(    ABS( zslpx(ji  ,jj,jk) ),   &
+               &                                                2.d0*ABS( zwx  (ji-1,jj,jk) ),   &
+               &                                                2.d0*ABS( zwx  (ji  ,jj,jk) ) )
+               zslpy(ji,jj,jk) = SIGN( 1.d0, zslpy(ji,jj,jk) ) * MIN(    ABS( zslpy(ji,jj  ,jk) ),   &
+               &                                                2.d0*ABS( zwy  (ji,jj-1,jk) ),   &
+               &                                                2.d0*ABS( zwy  (ji,jj  ,jk) ) )
+            END DO
+         END DO
+      END DO
+
+      DO jk = 1, jpk-1
+         zdt  = 1
+         DO jj = 2, jpj-1
+            DO ji = 2, jpi-1
+                zwx(ji,jj,jk) = pun(ji,jj,jk) * ( (0.5d0 - SIGN( 0.5d0, pun(ji,jj,jk) )) * mydomain(ji+1,jj,jk) + zind(ji,jj,jk) * ((SIGN( 0.5d0, pun(ji,jj,jk) ) - 0.5d0 * pun(ji,jj,jk) * 1.) * zslpx(ji+1,jj,jk)) + (1.-(0.5d0 - SIGN( 0.5d0, pun(ji,jj,jk) ))) * mydomain(ji  ,jj,jk) + zind(ji,jj,jk) * ((SIGN( 0.5d0, pun(ji,jj,jk) ) - 0.5d0 * pun(ji,jj,jk) * 1.) * zslpx(ji  ,jj,jk)) )
+
+
+                zwy(ji,jj,jk) = pvn(ji,jj,jk) * ( (0.5d0 - SIGN( 0.5d0, pvn(ji,jj,jk) )) * mydomain(ji,jj+1,jk) + zind(ji,jj,jk) * ((SIGN( 0.5d0, pvn(ji,jj,jk) ) - 0.5d0 * pvn(ji,jj,jk) * 1.) * zslpy(ji,jj+1,jk)) + (1.d0-(0.5d0 - SIGN( 0.5d0, pvn(ji,jj,jk) ))) * mydomain(ji,jj  ,jk) + zind(ji,jj,jk) * ((SIGN( 0.5d0, pvn(ji,jj,jk) ) - 0.5d0 * pvn(ji,jj,jk) * 1.) * zslpy(ji,jj  ,jk)) )
+             END DO
+          END DO
+      END DO
+
+      DO jk = 1, jpk-1
+         DO jj = 2, jpj-1
+            DO ji = 2, jpi-1
+               mydomain(ji,jj,jk) = mydomain(ji,jj,jk) + (- 1. * ( zwx(ji,jj,jk) - zwx(ji-1,jj  ,jk  )   &
+               &               + zwy(ji,jj,jk) - zwy(ji  ,jj-1,jk  ) ))
+            END DO
+         END DO
+      END DO
+
+      DO jj = 1, jpj
+         DO ji = 1, jpi
+            zwx (ji,jj, 1 ) = 0.e0
+            zwx (ji,jj,jpk) = 0.e0
+         END DO
+      END DO
+
+      DO jk = 2, jpk-1
+         DO jj = 1, jpj
+            DO ji = 1, jpi
+               zwx(ji,jj,jk) = tmask(ji,jj,jk) * ( mydomain(ji,jj,jk-1) - mydomain(ji,jj,jk) )
+            END DO
+         END DO
+      END DO
+
+      DO jj = 1, jpj
+         DO ji = 1, jpi
+            zslpx(ji,jj,1) = 0.e0
+         END DO
+      END DO
+
+      DO jk = 2, jpk-1
+         DO jj = 1, jpj
+            DO ji = 1, jpi
+               zslpx(ji,jj,jk) =                    ( zwx(ji,jj,jk) + zwx(ji,jj,jk+1) )   &
+               &            * ( 0.25d0 + SIGN( 0.25d0, zwx(ji,jj,jk) * zwx(ji,jj,jk+1) ) )
+            END DO
+         END DO
+      END DO
+
+      DO jk = 2, jpk-1
+         DO jj = 1, jpj
+            DO ji = 1, jpi
+               zslpx(ji,jj,jk) = SIGN( 1.d0, zslpx(ji,jj,jk) ) * MIN( ABS( zslpx(ji,jj,jk  ) ), &
+               &                                               2.d0*ABS( zwx  (ji,jj,jk+1) ),   &
+               &                                               2.d0*ABS( zwx  (ji,jj,jk  ) )  )
+            END DO
+         END DO
+      END DO
+
+      DO jk = 1, 1
+        DO jj = 1, jpj
+           DO ji = 1, jpi
+              zwx(ji,jj, jk) = pwn(ji,jj,jk) * mydomain(ji,jj,jk)
+           END DO
+        END DO
+      END DO
+
+      DO jk = 1, jpk-1
+         DO jj = 2, jpj-1
+            DO ji = 2, jpi-1
+               zwx(ji,jj,jk+1) = pwn(ji,jj,jk+1) * ( 0.5d0 + SIGN( 0.5d0, pwn(ji,jj,jk+1) ) * (mydomain(ji,jj,jk+1) + zind(ji,jj,jk) * (SIGN( 0.5d0, pwn(ji,jj,jk+1) ) - 0.5d0 * pwn(ji,jj,jk+1) * 1.0 * 1.0 * zslpx(ji,jj,jk+1))) + (1.-0.5d0 + SIGN( 0.5d0, pwn(ji,jj,jk+1) )) * (mydomain(ji,jj,jk  ) + zind(ji,jj,jk) * (SIGN( 0.5d0, pwn(ji,jj,jk+1) ) - 0.5d0 * pwn(ji,jj,jk+1) * 1.0 * 1.0 * zslpx(ji,jj,jk  ))) )
+            END DO
+         END DO
+      END DO
+
+      DO jk = 1, jpk-1
+         DO jj = 2, jpj-1
+            DO ji = 2, jpi-1
+               mydomain(ji,jj,jk) = - 1.0 * ( zwx(ji,jj,jk) - zwx(ji,jj,jk+1) )
+            END DO
+         END DO
+      END DO
   END DO
 
 
