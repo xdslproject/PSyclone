@@ -413,7 +413,11 @@ class xDSLWriter(LanguageWriter):
         return exec_statements
 
     def assignment_node(self, node):
-      return psy_ir.Assign.get(self._visit(node.lhs), self._visit(node.rhs))
+      visited_rhs=self._visit(node.rhs)
+      if isinstance(visited_rhs, list):
+        assert len(visited_rhs) == 1
+        visited_rhs=visited_rhs[0]
+      return psy_ir.Assign.get(self._visit(node.lhs), visited_rhs)
 
     def reference_node(self, node):
       return psy_ir.ExprName.get(node.symbol.name, self.ctx[node.symbol.name])
