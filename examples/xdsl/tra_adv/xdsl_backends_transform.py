@@ -50,10 +50,10 @@ def trans(psy):
 
         routine_list.append(writer(sched))
 
-    top_level=ModuleOp.from_region_or_ops(routine_list)
+    top_level=ModuleOp(routine_list)
     printer.print_op(top_level)
 
-    f = open("psy_output.xdsl", "w")
+    f = open("psy_output.mlir", "w")
     p2=Printer(stream=f)
     p2.print_op(top_level)
     f.close()
