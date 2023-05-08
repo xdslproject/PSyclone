@@ -16,20 +16,21 @@ PROGRAM tra_adv
    REAL*8                                        :: zw, z0w
    INTEGER                                       :: jpi, jpj, jpk, ji, jj, jk, jt
    INTEGER*8                                     :: itn_count
-   
+   integer :: itimer0, itimer1
+
    call MPI_Init()
 
 
-   jpi=64
-   jpj=64
-   jpk=64
-   itn_count=10
-   
+   jpi=256
+   jpj=256
+   jpk=256
+   itn_count=100
+
    allocate(tsn(jpi, jpj, jpk))
    allocate(pun(jpi, jpj, jpk))
    allocate(pvn(jpi, jpj, jpk))
    allocate(pwn(jpi, jpj, jpk))
-   
+
    allocate(mydomain(jpi, jpj, jpk))
    allocate(zslpx(jpi, jpj, jpk))
    allocate(zslpy(jpi, jpj, jpk))
@@ -39,11 +40,14 @@ PROGRAM tra_adv
    allocate(vmask(jpi, jpj, jpk))
    allocate(tmask(jpi, jpj, jpk))
    allocate(zind(jpi, jpj, jpk))
-   
+
    allocate(ztfreez(jpi, jpj))
    allocate(rnfmsk(jpi, jpj))
    allocate(upsmsk(jpi, jpj))
    allocate(rnfmsk_z(jpk))
+
+   call timer_init()
+   call timer_start(itimer0, label='Initialise')
 
 ! arrays initialization
 
@@ -85,6 +89,9 @@ PROGRAM tra_adv
 !***********************
 !* Start of the symphony
 !***********************
+
+call timer_stop(itimer0)
+   call timer_start(itimer1, label='Compute')
 
    DO jt = 1, itn_count
 
@@ -232,12 +239,16 @@ PROGRAM tra_adv
          END DO
       END DO
   END DO
-  
+
+  call timer_stop(itimer1)
+
+  call timer_report()
+
   deallocate(tsn)
   deallocate(pun)
   deallocate(pvn)
   deallocate(pwn)
-   
+
   deallocate(mydomain)
   deallocate(zslpx)
   deallocate(zslpy)
@@ -247,11 +258,11 @@ PROGRAM tra_adv
   deallocate(vmask)
   deallocate(tmask)
   deallocate(zind)
-   
+
   deallocate(ztfreez)
   deallocate(rnfmsk)
   deallocate(upsmsk)
   deallocate(rnfmsk_z)
-  
+
   call MPI_Finalize()
 end program tra_adv
