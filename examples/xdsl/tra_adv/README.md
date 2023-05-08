@@ -2,11 +2,11 @@ python3.10 /home/nick/projects/xdsl/PSyclone/bin/psyclone -api nemo -s ./xdsl_ba
 
 To compile, for non-MPI:
 
-./psy-opt -p apply-stencil-analysis,psy-ir-to-fir,extract-stencil,rewrite-fir-to-standard psy_output.xdsl -t both
+./psy-opt -p apply-stencil-analysis,lower-psy-ir,extract-stencil,rewrite-fir-to-standard psy_output.mlir
 
 Then copy the module 0 file out to the xdsl tools directory, and run
 
-./xdsl-opt -p stencil-shape-inference,convert-stencil-to-ll-mlir module_0.xdsl -t mlir -o stencil.mlir
+./xdsl-opt -p stencil-shape-inference,convert-stencil-to-ll-mlir module_0.mlir -o stencil.mlir
 
 Then copy stencil.mlir and module_1.mlir (in generated directory) to your compile directory.
 
@@ -22,11 +22,11 @@ And run the executable :)
 
 To compile, for MPI:
 
-./psy-opt -p apply-stencil-analysis,psy-ir-to-fir,lower-mpi,extract-stencil,rewrite-fir-to-standard psy_output.xdsl -t both
+./psy-opt -p apply-stencil-analysis,lower-psy-ir,lower-mpi,extract-stencil,rewrite-fir-to-standard psy_output.mlir
 
 Then copy the module 0 file out to the xdsl tools directory, and run
 
-./xdsl-opt -p apply-mpi,stencil-shape-inference,convert-stencil-to-ll-mlir,lower-mpi module_0.xdsl -t mlir -o stencil.mlir
+./xdsl-opt -p apply-mpi,stencil-shape-inference,convert-stencil-to-ll-mlir,lower-mpi module_0.mlir -o stencil.mlir
 
 Then copy stencil.mlir and module_1.mlir (in generated directory) to your compile directory.
 
@@ -42,11 +42,11 @@ And run the executable using mpiexec :)
 
 To compile, for GPU:
 
-./psy-opt -p apply-stencil-analysis,psy-ir-to-fir,extract-stencil,rewrite-fir-to-standard psy_output.xdsl -t both
+./psy-opt -p apply-stencil-analysis,lower-mpi,extract-stencil,rewrite-fir-to-standard psy_output.mlir
 
 Then copy the module 0 file out to the xdsl tools directory, and run
 
-./xdsl-opt -p stencil-shape-inference,convert-stencil-to-gpu module_0.xdsl -t mlir -o stencil-gpu.mlir
+./xdsl-opt -p stencil-shape-inference,convert-stencil-to-gpu module_0.mlir -o stencil-gpu.mlir
 
 Then copy stencil.mlir and module_1.mlir (in generated directory) to your compile directory.
 
