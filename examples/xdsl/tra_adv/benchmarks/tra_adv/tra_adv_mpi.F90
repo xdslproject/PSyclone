@@ -155,7 +155,6 @@ call timer_stop(itimer0)
       END DO
 
       DO jk = 1, jpk-1
-         zdt  = 1
          DO jj = 2, jpj-1
             DO ji = 2, jpi-1
                 zwx(ji,jj,jk) = pun(ji,jj,jk) * ( (0.5d0 - SIGN( 0.5d0, pun(ji,jj,jk) )) * mydomain(ji+1,jj,jk) + zind(ji,jj,jk) * ((SIGN( 0.5d0, pun(ji,jj,jk) ) - 0.5d0 * pun(ji,jj,jk) * 1.) * zslpx(ji+1,jj,jk)) + (1.-(0.5d0 - SIGN( 0.5d0, pun(ji,jj,jk) ))) * mydomain(ji  ,jj,jk) + zind(ji,jj,jk) * ((SIGN( 0.5d0, pun(ji,jj,jk) ) - 0.5d0 * pun(ji,jj,jk) * 1.) * zslpx(ji  ,jj,jk)) )
